@@ -3,6 +3,8 @@ import os
 import socket
 import json
 import threading
+import random
+import base64
 from queue import Queue
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -96,7 +98,7 @@ while True:
         encrypted_aes_key = rsa_encrypt(pubkey, aes_key)
 
         chat_partner = recipient
-        print(f"Chat started with {chat_partner}")
+        print("Chat started with {chat_partner}")
 
         sock.send(json.dumps({
             "cmd": "invite",
@@ -120,12 +122,32 @@ threading.Thread(target=show_messages, daemon=True).start()
 
 while True:
     msg = input("> ")
+
     if msg.lower() == "exit":
         break
-    encrypted = aes_encrypt(aes_key, msg).decode()
+
+    # Normal message
+    encrypted = aes_encrypt(aes_key, msg)
+    
+    # Optional: tamper with ciphertext if command given
+    if msg.lower().startswith("/tamper "):
+        tamper_msg = msg[8:].strip()
+        encrypted = aes_encrypt(aes_key, tamper_msg)
+
+        # Flip a random byte in the encrypted message
+        tampered = bytearray(encrypted)
+        tampered_index = random.randint(0, len(tampered) - 1)
+        tampered[tampered_index] ^= 0x01  # Flip one bit
+
+        # Base64 encode tampered data
+        encrypted = base64.b64encode(bytes(tampered))
+
+        print(f"{encrypted.decode()}")
+
+    # Send message
     sock.send(json.dumps({
         "cmd": "message",
         "from": username,
         "to": chat_partner,
-        "message": encrypted
+        "message": encrypted.decode()
     }).encode())
